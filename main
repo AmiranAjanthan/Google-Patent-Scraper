@@ -4,14 +4,24 @@ import xlsxwriter
 import datetime
 import tkinter as tk
 from tkinter import ttk
-   
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename='errors.log', encoding='utf-8', level=logging.DEBUG)
+
+
+api_key = os.environ.get('API_KEY')
+
 def Patent_Creator():
-    print("Patent Creator Started")
+
+    logger.debug("Patent_Creator function started")
+    
     parameters = {
       "engine": "google_patents",
       "q": query.get(),
-      "before": upper_range.get(),
-      "after": lower_range.get(),
+      "before": "priority:" + upper_range.get(),
+      "after": "priority:" + lower_range.get(),
       "assignee": assignee_val.get(),
       "inventor": inventor_val.get(),
       "status": status_val.get(),
@@ -20,18 +30,21 @@ def Patent_Creator():
       "type": types_val.get(),
       "litigation": litigation_val.get(),
       "num": "100",
-      "api_key": "d5aa3c29a9a69177f1939ff857e10bc048ab1823634397cfee80dff6e9f20383"
+      "api_key": api_key
     }
    
     params = {k: v for k, v in parameters.items() if v}
+    logger.debug(f"Parameters: {params}")
     
     #Extracting data from patents page
     search = GoogleSearch(params)
     results = search.get_dict()
+    organic_results = []
     try:
         organic_results = results["organic_results"]
-        print("Results done")
-    except KeyError:
+        logger.info(f"Number of results: {len(organic_results)}")
+    except KeyError as e:
+        logger.error(f"KeyError: {e}")
         popup = tk.Tk()
         popup.title("Google Patent Scraper")
         frame1 = tk.Frame(popup)
@@ -41,6 +54,9 @@ def Patent_Creator():
         popup_frame.grid(row= 0, column=0, padx=20, pady=10)
         popup_label = tk.Label(popup_frame, text ="The inputs have resulted 0 search results, please try again")
         popup_label.grid(column=0, row=0)
+    
+    except Exception as e:
+        logger.exception("An unexpected error occurred")
     
  
         
@@ -84,13 +100,16 @@ def Patent_Creator():
     fdate_index = 1
     for result in organic_results:
         filing_date_str = result.get("priority_date")
-        try:
-            filing_date = datetime.datetime.strptime(filing_date_str, "%Y-%m-%d")
-        except TypeError:
-            continue  # Skip this result if the date format is invalid
-        expiration_date = filing_date + datetime.timedelta(days=365.25 * 20)
-        expiration_date_str = expiration_date.strftime("%Y-%m-%d")
-        worksheet.write(fdate_index, 3, expiration_date_str)
+        if filing_date_str: 
+            try:
+                filing_date = datetime.datetime.strptime(filing_date_str, "%Y-%m-%d")
+            except ValueError:
+                continue  # Skip this result if the date format is invalid
+            expiration_date = filing_date + datetime.timedelta(days=365.25 * 20)
+            expiration_date_str = expiration_date.strftime("%Y-%m-%d")
+            worksheet.write(fdate_index, 3, expiration_date_str)
+        else: 
+            worksheet.write(fdate_index, 3, "")
         fdate_index += 1
         
     
@@ -113,12 +132,12 @@ query_label.grid(column=0, row=0)
 query = tk.Entry(parameter_frame)
 query.grid(column=0, row=1)
 
-lower_range_label = tk.Label(parameter_frame, text ="Lower Priority Date Range")
+lower_range_label = tk.Label(parameter_frame, text ="Lower Priority Date Range - Mandatory")
 lower_range_label.grid(column=1, row=0)
 lower_range = tk.Entry(parameter_frame)
 lower_range.grid(column=1, row=1)
 
-upper_range_label = tk.Label(parameter_frame, text ="Upper Priority Date Range")
+upper_range_label = tk.Label(parameter_frame, text ="Upper Priority Date Range - Mandatory")
 upper_range_label.grid(column=2, row=0)
 upper_range = tk.Entry(parameter_frame)
 upper_range.grid(column=2, row=1)
@@ -174,7 +193,6 @@ button = tk.Button(submit_frame, text="Submit", command=Patent_Creator)
 button.grid(row=0, column=0, sticky="news", padx=20, pady=10)
 
 main_window.mainloop()
-
 
 
 
